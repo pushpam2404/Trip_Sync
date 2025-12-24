@@ -115,7 +115,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const removeRoute = useCallback(async (id: string) => {
         try {
             await api.delete(`/saved-routes/${id}`);
-            setSavedRoutes(prev => prev.filter(r => r._id !== id && r.id !== id)); // Handle both _id and id if needed
+            setSavedRoutes(prev => prev.filter(r => r.id !== id));
         } catch (error) {
             console.error("Error removing route:", error);
             alert("Failed to remove route");
@@ -131,7 +131,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // I'll leave it local for now, but note it won't persist until "saved" again or updated.
         // Or better, let's treat it as a local view change.
         setSavedRoutes(prev => prev.map(r => {
-            if (r.id === id || r._id === id) {
+            if (r.id === id) {
                 return { ...r, origin: r.destination, destination: r.origin };
             }
             return r;
