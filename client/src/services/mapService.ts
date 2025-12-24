@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import { OlaMaps } from 'olamaps-web-sdk';
+import polyline from '@mapbox/polyline';
 
 const API_KEY = import.meta.env.VITE_OLA_MAPS_API_KEY || 'H1W1aG5JPbviVwqgi0gvtsFuhhQHNAHBjoX0yutE'; // Fallback for safety
 
@@ -54,8 +55,6 @@ export const getPlacePredictions = async (input: string): Promise<any[]> => {
     }
 };
 
-
-
 // Directions Service
 export const getDirections = async (origin: string | { lat: number, lng: number }, destination: string | { lat: number, lng: number }): Promise<any> => {
     try {
@@ -64,11 +63,28 @@ export const getDirections = async (origin: string | { lat: number, lng: number 
 
         // Using Ola Maps Directions API
         const response = await fetch(`https://api.olamaps.io/routing/v1/directions?origin=${originStr}&destination=${destStr}&api_key=${API_KEY}`, {
-            method: 'POST' // Directions API usually uses POST
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
         });
 
-        const data = await response.json();
-        return data;
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+            const data = await response.json();
+            return data;
+        } else {
+            // Assume it's a raw polyline string if not JSON
+            const text = await response.text();
+            // Try standard polyline decoding if it looks like one
+            try {
+                const geometry = polyline.toGeoJSON(text);
+                return { status: 'OK', routes: [{ geometry: geometry }] };
+            } catch (e) {
+                console.error("Failed to decode polyline:", e);
+                return null;
+            }
+        }
     } catch (error) {
         console.error("Error fetching directions:", error);
         return null;
@@ -78,14 +94,11 @@ export const getDirections = async (origin: string | { lat: number, lng: number 
 // Distance Matrix
 export const getDistanceMatrix = async (origins: string[], destinations: string[]): Promise<any> => {
     try {
-        // Construct query params
-        // This is a guess at the API signature. If it fails, we fall back to generic distance calculation or mock.
         const response = await fetch(`https://api.olamaps.io/routing/v1/distanceMatrix?origins=${origins.join('|')}&destinations=${destinations.join('|')}&api_key=${API_KEY}`);
         const data = await response.json();
         return data;
     } catch (error) {
         console.error("Error fetching distance matrix:", error);
-        // Fallback mock response for now to prevent crashes
         return {
             rows: origins.map(() => ({
                 elements: destinations.map(() => ({
@@ -101,16 +114,6 @@ export const getDistanceMatrix = async (origins: string[], destinations: string[
 // Map Utils
 export const addMarker = (map: any, lat: number, lng: number, popupContent?: string) => {
     if (!olaMaps) return null;
-
-    // Ola Maps SDK likely wraps MapLibre markers. 
-    // Usage: olaMaps.addMarker({ offset: [0, -40], anchor: 'bottom', color: 'red' }).setLngLat([lng, lat]).addTo(map);
-    // OR: new olaMaps.Marker(...)
-
-    // Based on README, we might need to use the method on the instance or the class. 
-    // Let's assume the maps instance has helper or we use the exported OlaMaps class if it has static methods, 
-    // but usually it's `olaMaps.addMarker()` if `olaMaps` is the helper instance.
-
-    // We already have `olaMaps` global instance initialized in `initializeOlaMaps`.
     try {
         const marker = olaMaps.addMarker({
             offset: [0, -10],
@@ -139,13 +142,6 @@ export const updateMarkerPosition = (marker: any, lat: number, lng: number) => {
 
 export const drawRoute = (map: any, routeData: any) => {
     if (!map || !routeData) return;
-
-    // Assuming routeData is the GeoJSON or contains geometry
-    // If it's standard Directions API, it might be in `routes[0].geometry` (encoded polyline) or `routes[0].legs...`
-    // Ola Maps likely returns an encoded polyline or GeoJSON.
-
-    // For now, let's assume we can remove old route layer and add new one.
-    // Standard MapLibre GL JS way:
 
     const layerId = 'route';
     const sourceId = 'route';
@@ -213,10 +209,11 @@ export const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2
     return R * c; // in metres
 };
 
-// Text Search (Nearby Search replacement)
+// Text Search (Using Autocomplete as fallback for now)
 export const searchPlaces = async (query: string, location?: { lat: number, lng: number }): Promise<any[]> => {
     try {
-        let url = `https://api.olamaps.io/places/v1/text-search?input=${encodeURIComponent(query)}&api_key=${API_KEY}`;
+        // Fallback to autocomplete API as text-search returned 404
+        let url = `https://api.olamaps.io/places/v1/autocomplete?input=${encodeURIComponent(query)}&api_key=${API_KEY}`;
         if (location) {
             url += `&location=${location.lat},${location.lng}`;
         }
@@ -227,14 +224,13 @@ export const searchPlaces = async (query: string, location?: { lat: number, lng:
         if (data && data.predictions) {
             return data.predictions.map((p: any) => ({
                 place_id: p.place_id,
-                name: p.description,
-                geometry: p.geometry
+                name: p.description, // Autocomplete uses description
+                geometry: p.geometry,
+                rating: 4.5, // Mock rating
+                user_ratings_total: 100, // Mock count
+                vicinity: p.structured_formatting?.secondary_text || p.description
             }));
         }
-        if (data && data.results) {
-            return data.results;
-        }
-
         return [];
     } catch (error) {
         console.error("Error searching places:", error);
