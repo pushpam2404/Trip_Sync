@@ -85,7 +85,24 @@ export const getDirections = async (origin: string | { lat: number, lng: number 
         try {
             const geometry = polyline.toGeoJSON(text);
             if (geometry.coordinates.length > 0) {
-                return { status: 'OK', routes: [{ geometry: geometry }] };
+                // Create a mock route structure with one leg and one step to prevent UI crashes
+                const mockLeg = {
+                    distance: { value: 0, text: "Unknown" },
+                    duration: { value: 0, text: "Unknown" },
+                    steps: [
+                        {
+                            distance: { value: 0, text: "Unknown" },
+                            duration: { value: 0, text: "Unknown" },
+                            html_instructions: "Follow the route",
+                            instructions: "Follow the route",
+                            maneuver: "straight",
+                            start_location: { lat: geometry.coordinates[0][1], lng: geometry.coordinates[0][0] },
+                            end_location: { lat: geometry.coordinates[geometry.coordinates.length - 1][1], lng: geometry.coordinates[geometry.coordinates.length - 1][0] },
+                            polyline: { points: text }
+                        }
+                    ]
+                };
+                return { status: 'OK', routes: [{ geometry: geometry, legs: [mockLeg], overview_polyline: text }] };
             }
         } catch (e) {
             console.error("Failed to decode polyline or parse JSON:", text.substring(0, 50));
@@ -126,6 +143,7 @@ export const addMarker = (map: any, lat: number, lng: number, popupContent?: str
         const marker = olaMaps.addMarker({
             offset: [0, -10],
             anchor: 'bottom',
+            color: 'red'
         })
             .setLngLat([lng, lat])
             .addTo(map);
