@@ -169,7 +169,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 endTime: 'N/A',
                 distance: 0, // Needs calculation
                 vehicleNumber: response.data.vehicle,
-                travelers: 1,
+                travelers: response.data.travelers || 1,
                 stops: response.data.stops?.length || 0,
                 mode: '4W'
             };
