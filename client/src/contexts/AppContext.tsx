@@ -149,6 +149,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 vehicle: tripData.vehicleNumber,
                 tripType: 'one-way', // Default
                 stops: [], // Basic implementation
+                travelers: tripData.travelers,
                 // Map other fields if necessary
             };
 
@@ -184,9 +185,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         try {
             await api.delete(`/trips/${id}`);
             setTrips(prev => prev.filter(t => t.id !== id));
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error deleting trip:", error);
-            alert("Failed to delete trip");
+            const msg = error.response?.data?.message || error.message || "Unknown error";
+            alert(`Failed to delete trip: ${msg}`);
         }
     }, [setTrips]);
 

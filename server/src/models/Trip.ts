@@ -15,6 +15,10 @@ const tripSchema = new mongoose.Schema({
         name: String,
         mileage: Number,
     },
+    travelers: {
+        type: Number,
+        default: 1,
+    },
     tripType: {
         type: String,
         enum: ['one-way', 'round-trip'],

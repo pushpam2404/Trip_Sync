@@ -19,6 +19,7 @@ export const createTrip = async (req: AuthRequest, res: Response) => {
             customVehicle,
             tripType,
             stops,
+            travelers,
         } = req.body;
 
         const trip = await Trip.create({
@@ -31,6 +32,7 @@ export const createTrip = async (req: AuthRequest, res: Response) => {
             customVehicle,
             tripType,
             stops,
+            travelers,
         });
 
         res.status(201).json(trip);
