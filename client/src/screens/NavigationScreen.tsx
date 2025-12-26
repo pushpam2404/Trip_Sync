@@ -8,7 +8,7 @@ import { InstructionPanel } from '../components/map/InstructionPanel';
 import { GeolocationPermissionError } from '../components/common/PermissionErrors';
 import { AddStopModal } from '../components/map/AddStopModal';
 import { StopsListModal } from '../components/map/StopsListModal';
-import { getDirections, calculateDistance, searchPlaces, reverseGeocode } from '../services/mapService';
+import { getDirections, calculateDistance, searchPlaces, searchNearbyPlaces, reverseGeocode, getPlaceDetails } from '../services/mapService';
 
 const libraries: ("places" | "geometry")[] = ["places", "geometry"];
 
@@ -84,20 +84,29 @@ export const NavigationScreen = ({ tripDetails, onCheckOut }: { tripDetails: Tri
         setIsStopsListVisible(true);
         setStopSearchResults(null);
 
-        const results = await searchPlaces(keyword, userLocation);
+        // Uses the new PlacesService wrapper for better category search results
+        const results = await searchNearbyPlaces(keyword, userLocation);
 
         if (results && results.length > 0) {
             const placesWithDistance = results.map(place => {
-                // Approximate distance calculation since we don't have coords for all predictions immediately
-                // For a real app, we might need to fetch details for each to get coords, but we'll skip for speed or use what is available
-                // 'searchPlaces' refactor returns basics. We'd need to fetch details. 
-                // For now, let's just show them.
+                // We now have geometry in the result
+                const dist = calculateDistance(
+                    userLocation.lat, userLocation.lng,
+                    place.geometry.location.lat(), place.geometry.location.lng()
+                );
+
                 return {
-                    place,
-                    distance: { value: 0, text: 'Unknown' }, // Placeholder
+                    place: {
+                        ...place,
+                        description: place.name, // Adapter for StopsModal
+                        secondary_text: place.vicinity
+                    },
+                    distance: { value: dist, text: dist < 1000 ? `${Math.round(dist)} m` : `${(dist / 1000).toFixed(1)} km` },
                     duration: { value: 0, text: 'Unknown' }
                 };
             });
+            // Sort by distance
+            placesWithDistance.sort((a, b) => a.distance.value - b.distance.value);
             setStopSearchResults(placesWithDistance);
         } else {
             setMapError({ type: 'generic', message: `No ${keyword} found nearby.` });
@@ -108,16 +117,23 @@ export const NavigationScreen = ({ tripDetails, onCheckOut }: { tripDetails: Tri
 
     const handleSelectStop = async (placeResult: any) => {
         // We need the location of the stop to add it as a waypoint
-        // In Google Maps Directions, we can pass the placeId or query as a waypoint
-        // We can just add the place_id to waypoints list
-        setWaypoints(prev => [...prev, { location: placeResult.place.description, stopover: true }]);
+        // prefer geometry location if available, else description string
+        const loc = placeResult.place.geometry ? placeResult.place.geometry.location : placeResult.place.description;
+
+        setWaypoints(prev => [...prev, { location: loc, stopover: true }]);
         setIsStopsListVisible(false);
         setStopSearchResults(null);
     };
 
-    const handlePlaceSelect = (placeId: string) => {
-        // Direct selection from add modal
-        console.log("Place Selected", placeId);
+    const handlePlaceSelect = async (placeId: string) => {
+        setShowAddStopModal(false);
+        // Direct selection from add modal search bar
+        const place = await getPlaceDetails(placeId);
+        if (place && place.geometry && place.geometry.location) {
+            setWaypoints(prev => [...prev, { location: place.geometry.location, stopover: true }]);
+        } else {
+            setMapError({ type: 'generic', message: "Could not get details for selected stop." });
+        }
     };
 
     const handleRemoveStop = () => setWaypoints([]);
@@ -146,7 +162,7 @@ export const NavigationScreen = ({ tripDetails, onCheckOut }: { tripDetails: Tri
                 stopover: wp.stopover
             }));
 
-            const result = await getDirections(origin, dest);
+            const result = await getDirections(origin, dest, googleWaypoints);
             if (result) {
                 setDirections(result);
                 setMapError(null);

@@ -8,7 +8,7 @@ import { PredictionsList } from '../../components/map/PredictionsList';
 import { TabScreenHeader } from '../../components/common/TabScreenHeader';
 import { Screen } from '../../types';
 
-import { getPlacePredictions, searchPlaces, reverseGeocode } from '../../services/mapService';
+import { getPlacePredictions, searchNearbyPlaces, reverseGeocode } from '../../services/mapService';
 import { PlacePrediction } from '../../components/map/PredictionsList';
 
 export const PlannerScreen = () => {
@@ -79,11 +79,8 @@ export const PlannerScreen = () => {
     const resolveDestinationCoords = async (dest: string) => {
         if (!dest) return null;
         try {
-            // Use predictions to get details including geometry. 
-            // Ideally we'd use a dedicated geocode function, but searchPlaces can work if it returns geometry.
-            // Or use the predictions we might have selected. 
-            // For robust text-to-coord, we can use searchPlaces(dest) itself.
-            const results = await searchPlaces(dest);
+            // Use searchNearbyPlaces (TextSearch) to get geometry for the string
+            const results = await searchNearbyPlaces(dest);
             if (results && results.length > 0 && results[0].geometry?.location) {
                 return results[0].geometry.location;
             }
@@ -116,7 +113,7 @@ export const PlannerScreen = () => {
                 setSelectedStayId(null);
 
                 const destCoords = await resolveDestinationCoords(destination);
-                const results = await searchPlaces(`hotels and resorts`, destCoords || undefined);
+                const results = await searchNearbyPlaces(`hotels and resorts`, destCoords || undefined, 5000);
 
                 if (results && results.length > 0) {
                     const formattedStays: Stay[] = results.map(place => ({
@@ -150,7 +147,7 @@ export const PlannerScreen = () => {
                 setNearbyAttractions([]);
 
                 const destCoords = await resolveDestinationCoords(destination);
-                const results = await searchPlaces(`tourist attractions`, destCoords || undefined);
+                const results = await searchNearbyPlaces(`tourist attractions`, destCoords || undefined, 5000);
 
                 if (results && results.length > 0) {
                     const formattedAttractions: Stay[] = results.map(place => ({
